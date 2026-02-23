@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>FlowMind AI — Dashboard</title>
+  <meta name="description" content="Convert natural language to diagrams with AI"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: #0b0b10; font-family: 'Inter', sans-serif; color: #e2e8f0; overflow-x: hidden; }
+
+    /* ── Sidebar ─────────────────────────────── */
+    #sidebar {
+      position: fixed; top: 0; left: 0; height: 100vh; width: 272px;
+      background: rgba(10,10,18,0.97); border-right: 1px solid rgba(255,255,255,0.07);
+      display: flex; flex-direction: column; z-index: 50;
+      transform: translateX(-100%);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto;
+    }
+    #sidebar::-webkit-scrollbar { width: 3px; }
+    #sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 9999px; }
+    #sidebar.open { transform: translateX(0); }
+
+    /* On desktop (≥1024px): sidebar always visible, main shifted */
+    @media (min-width: 1024px) {
+      #sidebar { transform: translateX(0) !important; position: relative; height: 100vh; flex-shrink: 0; }
+      #backdrop { display: none !important; }
+      body { display: flex; }
+      #main { flex: 1; min-width: 0; }
+    }
+
+    /* ── Main ───────────────────────────────── */
+    #main { min-height: 100vh; display: flex; flex-direction: column; }
+    @media (min-width: 1024px) { #main { overflow-y: auto; } }
+
+    /* ── Backdrop (mobile only) ─────────────── */
+    #backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      z-index: 40; opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #backdrop.show { opacity: 1; pointer-events: all; }
+
+    /* ── Glass ──────────────────────────────── */
+    .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); }
+
+    /* ── Gradient text ──────────────────────── */
+    .grad { background: linear-gradient(135deg,#818cf8,#c084fc,#fb923c); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+    /* ── Buttons ────────────────────────────── */
+    .btn-primary { background: linear-gradient(135deg,#6366f1,#8b5cf6); transition: all .25s; box-shadow: 0 4px 20px rgba(99,102,241,.3); border-radius: 14px; }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(99,102,241,.5); }
+    .btn-primary:active:not(:disabled) { transform: translateY(0); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-ghost { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); transition: all .2s; border-radius: 10px; }
+    .btn-ghost:hover { background: rgba(255,255,255,0.09); }
+
+    /* ── Type badges ────────────────────────── */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .b-flow { background: rgba(99,102,241,.18); color: #818cf8; }
+    .b-seq  { background: rgba(16,185,129,.18); color: #34d399; }
+    .b-mind { background: rgba(245,158,11,.18); color: #fbbf24; }
+
+    /* ── History items ──────────────────────── */
+    .hist-item { border: 1px solid rgba(255,255,255,0.06); transition: all .2s; cursor: pointer; border-radius: 12px; }
+    .hist-item:hover { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,.3); }
+    .hist-item:active { transform: scale(0.98); }
+
+    /* ── Spinner ────────────────────────────── */
+    .spin { border: 2.5px solid rgba(255,255,255,.15); border-top-color:#fff; border-radius:50%; animation: rot .75s linear infinite; display:inline-block; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    /* ── Select ─────────────────────────────── */
+    select { -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; background-size:16px; }
+
+    /* ── Focus ──────────────────────────────── */
+    textarea:focus, select:focus { outline: none; border-color: rgba(99,102,241,.6) !important; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+
+    /* ── Pulse ──────────────────────────────── */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+
+    /* ── Mermaid SVG ────────────────────────── */
+    #diagram-preview svg { max-width: 100%; height: auto; }
+
+    /* ── Panel grid on md+ ──────────────────── */
+    @media (min-width: 768px) {
+      #content-grid { display: flex; flex-direction: row; gap: 20px; align-items: flex-start; }
+      #input-panel { width: 380px; flex-shrink: 0; }
+      #preview-panel { flex: 1; min-width: 0; }
+    }
+
+    /* ── Scrollbar ──────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 9999px; }
+  </style>
+</head>
+
+<body>
+
+<!-- ── BACKDROP (mobile overlay) ──────────────── -->
+<div id="backdrop" onclick="closeSidebar()"></div>
+
+<!-- ────────────────── SIDEBAR ────────────────── -->
+<aside id="sidebar">
+
+  <!-- Logo -->
+  <div class="px-5 pt-5 pb-4 border-b border-white/[0.07]">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-bold grad leading-none">FlowMind AI</p>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse"></span>
+            <span class="text-[10px] text-gray-500">Gemini 2.5 Flash</span>
+          </div>
+        </div>
+      </div>
+      <!-- Close button (mobile only) -->
+      <button onclick="closeSidebar()" class="lg:hidden text-gray-600 hover:text-gray-300 p-1 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- User info -->
+  <div class="px-4 py-3.5 border-b border-white/[0.07]">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+        {{ request.user.phone_number|slice:":1" }}
+      </div>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-white truncate">+91 {{ request.user.phone_number }}</p>
+        <p class="text-[11px] text-gray-500">Logged in via OTP</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="px-3 py-3 flex flex-col gap-1">
+    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+      </svg>
+      Dashboard
+    </a>
+    <a href="/admin/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/[0.05] text-sm transition-all">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+      Admin Panel
+    </a>
+  </nav>
+
+  <!-- History list -->
+  <div class="flex-1 px-3 pb-2">
+    <div class="flex items-center justify-between px-2 mb-2">
+      <span class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest">Recent Diagrams</span>
+      <span class="text-[10px] text-gray-800">Last 10</span>
+    </div>
+    <div id="history-list" class="flex flex-col gap-1.5">
+      {% if history %}
+        {% for item in history %}
+        <div
+          class="hist-item px-3 py-2.5"
+          onclick="loadFromHistory('{{ item.mermaid_code|escapejs }}','{{ item.prompt|escapejs }}','{{ item.diagram_type }}')"
+        >
+          <span class="badge {% if item.diagram_type == 'flowchart' %}b-flow{% elif item.diagram_type == 'sequence' %}b-seq{% else %}b-mind{% endif %}">
+            {% if item.diagram_type == 'flowchart' %}⬡{% elif item.diagram_type == 'sequence' %}⇄{% else %}✦{% endif %}
+            {{ item.get_diagram_type_display }}
+          </span>
+          <p class="text-gray-300 text-[11px] font-medium mt-1.5 leading-snug" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ item.prompt|truncatechars:60 }}</p>
+          <p class="text-gray-700 text-[10px] mt-1">{{ item.created_at|timesince }} ago</p>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div id="hist-empty" class="text-center py-10 text-gray-800 text-xs">
+          <p>No diagrams yet</p>
+          <p class="mt-1">Generate one to start!</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Logout -->
+  <div class="px-3 pb-5 mt-1">
+    <a href="{% url 'logout' %}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-400 text-sm transition-all border border-transparent hover:border-red-500/20">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+      </svg>
+      Logout
+    </a>
+  </div>
+</aside>
+
+<!-- ────────────────── MAIN ────────────────────── -->
+<div id="main">
+
+  <!-- Top bar -->
+  <header class="sticky top-0 z-30 bg-black/50 backdrop-blur-xl border-b border-white/[0.07] px-4 py-3 flex items-center gap-3">
+    <!-- Hamburger (mobile only) -->
+    <button onclick="openSidebar()" class="lg:hidden flex-shrink-0 w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.1] flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+    <!-- Logo text (mobile only) -->
+    <span class="lg:hidden text-sm font-bold grad">FlowMind AI</span>
+    <div class="hidden lg:block">
+      <h1 class="text-sm font-semibold text-white">AI Diagram Generator</h1>
+      <p class="text-[11px] text-gray-500">English, Hindi, ya Hinglish mein likhein</p>
+    </div>
+    <div class="ml-auto flex items-center gap-2">
+      <span id="render-badge" class="hidden text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-semibold">✓ Rendered</span>
+      <div class="flex items-center gap-1.5 glass px-2.5 py-1.5 rounded-lg">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse"></span>
+        <span class="text-[11px] text-gray-400 font-medium">API Active</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div id="content-grid" class="p-4 md:p-5 flex flex-col gap-4">
+
+    <!-- ── INPUT PANEL ────── -->
+    <div id="input-panel" class="flex flex-col gap-3">
+
+      <!-- Input card -->
+      <div class="glass rounded-2xl p-4 flex flex-col gap-4">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+          <h2 class="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Describe Your Flow</h2>
+        </div>
+
+        <!-- Diagram type -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs text-gray-500">Diagram Type</label>
+          <select id="diagram-type" class="bg-white/[0.04] border border-white/10 text-gray-200 text-sm rounded-xl px-4 py-2.5 pr-9 transition-all cursor-pointer">
+            <option value="flowchart">⬡  Flowchart (graph TD)</option>
+            <option value="sequence">⇄  Sequence Diagram</option>
+            <option value="mindmap">✦  Mindmap</option>
+          </select>
+        </div>
+
+        <!-- Prompt textarea -->
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs text-gray-500">Description</label>
+          <textarea
+            id="prompt-input"
+            rows="6"
+            placeholder="English: 'User logs in, if valid show dashboard...'&#10;&#10;Hinglish: 'User login kare, agar sahi ho dashboard dikhao...'"
+            class="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-gray-100 placeholder-gray-700 text-sm resize-none transition-all leading-relaxed"
+          ></textarea>
+          <p class="text-[10px] text-gray-700 text-right">Ctrl+Enter to generate</p>
+        </div>
+
+        <!-- Generate button -->
+        <button id="generate-btn" onclick="generateDiagram()" class="btn-primary w-full py-3.5 font-semibold text-white flex items-center justify-center gap-2.5 text-sm">
+          <svg id="btn-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span id="btn-text">Generate Diagram</span>
+        </button>
+
+        <!-- Quick examples -->
+        <div>
+          <p class="text-[11px] text-gray-700 mb-2">Quick examples:</p>
+          <div class="flex flex-wrap gap-1.5">
+            <button onclick="setEx(0)" class="text-[11px] px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-indigo-500/15 border border-white/[0.08] hover:border-indigo-500/30 text-gray-500 hover:text-indigo-300 transition-all">🔐 Login</button>
+            <button onclick="setEx(1)" class="text-[11px] px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-indigo-500/15 border border-white/[0.08] hover:border-indigo-500/30 text-gray-500 hover:text-indigo-300 transition-all">🛒 Checkout</button>
+            <button onclick="setEx(2)" class="text-[11px] px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-indigo-500/15 border border-white/[0.08] hover:border-indigo-500/30 text-gray-500 hover:text-indigo-300 transition-all">📱 Hinglish</button>
+            <button onclick="setEx(3)" class="text-[11px] px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-indigo-500/15 border border-white/[0.08] hover:border-indigo-500/30 text-gray-500 hover:text-indigo-300 transition-all">🚀 CI/CD</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mermaid code card -->
+      <div id="code-card" class="glass rounded-2xl p-4 hidden">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Mermaid Code</span>
+          <div class="flex items-center gap-2">
+            <button onclick="copyCode()" class="btn-ghost flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 text-gray-400 hover:text-white transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              <span id="copy-text">Copy</span>
+            </button>
+            <button onclick="downloadPNG()" class="btn-ghost flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 text-gray-400 hover:text-emerald-300 transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span id="png-text">PNG</span>
+            </button>
+          </div>
+        </div>
+        <pre id="mermaid-code-display" class="font-mono text-[11px] text-emerald-300 bg-black/30 rounded-xl p-3 overflow-x-auto max-h-44 overflow-y-auto leading-relaxed whitespace-pre-wrap break-all"></pre>
+      </div>
+    </div>
+
+    <!-- ── PREVIEW PANEL ─── -->
+    <div id="preview-panel">
+      <div class="glass rounded-2xl flex flex-col" style="min-height: 400px;">
+        <!-- Preview header -->
+        <div class="flex items-center justify-between px-5 py-3 border-b border-white/[0.07] flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+            <h2 class="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Live Preview</h2>
+          </div>
+          <span id="type-badge" class="hidden badge b-flow"></span>
+        </div>
+
+        <!-- Error bar -->
+        <div id="error-bar" class="hidden mx-4 mt-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-start gap-2 flex-shrink-0">
+          <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.834-1.964-.834-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+          <span id="error-text"></span>
+        </div>
+
+        <!-- Diagram area -->
+        <div class="flex-1 flex items-center justify-center overflow-auto p-4" style="min-height: 340px;">
+
+          <!-- Placeholder -->
+          <div id="placeholder-state" class="text-center">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-white/10 flex items-center justify-center">
+              <svg class="w-8 h-8 text-indigo-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </div>
+            <p class="text-gray-600 text-sm font-medium">Aapka diagram yahan aayega</p>
+            <p class="text-gray-800 text-xs mt-1">Description likho → Generate dabao</p>
+          </div>
+
+          <!-- Loading -->
+          <div id="loading-state" class="hidden text-center">
+            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+              <div class="spin" style="width:22px;height:22px;border-width:2.5px;"></div>
+            </div>
+            <p class="text-indigo-300 text-sm font-semibold">Generating with AI...</p>
+            <p class="text-gray-700 text-xs mt-1">Gemini 2.5 Flash ✨</p>
+          </div>
+
+          <!-- Rendered diagram -->
+          <div id="diagram-output" class="hidden w-full flex items-center justify-center">
+            <div id="diagram-preview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content-grid -->
+</div><!-- /main -->
+
+<!-- ────────── JAVASCRIPT ──────────────────────── -->
+<script>
+  // Init Mermaid
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    fontFamily: 'Inter, sans-serif',
+    themeVariables: {
+      primaryColor: '#312e81', primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#6366f1', lineColor: '#818cf8',
+      secondaryColor: '#1e1b4b', background: '#0b0b10',
+      mainBkg: '#18182a', nodeBorder: '#6366f1', fontSize: '15px',
+      edgeLabelBackground: '#0b0b10',
+    }
+  });
+
+  // Quick examples
+  const EX = [
+    { t:'flowchart', p:"User opens app and clicks Login. Enters email and password. If credentials are correct, redirect to dashboard. If incorrect, show error and allow retry. After 5 failed attempts, lock account." },
+    { t:'sequence',  p:"Customer adds items to cart and clicks checkout. System verifies inventory. Payment gateway processes payment. If successful, order confirmed and email sent. If failed, prompt retry." },
+    { t:'flowchart', p:"User phone number daalega, OTP aayega, OTP sahi ho to dashboard dikhao, galat ho to error batao aur dobara try karne do." },
+    { t:'flowchart', p:"Developer pushes code to GitHub. CI pipeline triggers: lint check, unit tests, build Docker image. If tests pass, deploy to staging. After manual approval, deploy to production." }
+  ];
+  function setEx(i) {
+    document.getElementById('prompt-input').value = EX[i].p;
+    document.getElementById('diagram-type').value = EX[i].t;
+    document.getElementById('prompt-input').focus();
+  }
+
+  // CSRF
+  function csrf() {
+    return document.cookie.split(';').reduce((v,c)=>{
+      c=c.trim(); return c.startsWith('csrftoken=') ? decodeURIComponent(c.slice(10)) : v;
+    },'');
+  }
+
+  // Sidebar toggle
+  function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('backdrop').classList.add('show'); document.body.style.overflow='hidden'; }
+  function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('show'); document.body.style.overflow=''; }
+
+  // Type badges
+  const BADGE_CLS = { flowchart:'b-flow', sequence:'b-seq', mindmap:'b-mind' };
+  const BADGE_ICON = { flowchart:'⬡ Flowchart', sequence:'⇄ Sequence', mindmap:'✦ Mindmap' };
+  function setBadge(type) {
+    const el = document.getElementById('type-badge');
+    el.className = 'badge ' + (BADGE_CLS[type]||'b-flow');
+    el.textContent = BADGE_ICON[type]||type;
+    el.classList.remove('hidden');
+  }
+
+  // Loading state
+  function setLoading(on) {
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = on;
+    document.getElementById('btn-text').textContent = on ? 'Generating…' : 'Generate Diagram';
+    const icon = document.getElementById('btn-icon');
+    if(on) {
+      icon.outerHTML = '<div id="btn-icon" class="spin" style="width:16px;height:16px;border-width:2px;border-color:rgba(255,255,255,.2);border-top-color:white;flex-shrink:0"></div>';
+    } else {
+      const el = document.getElementById('btn-icon');
+      if(el && el.tagName==='DIV') el.outerHTML = '<svg id="btn-icon" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>';
+    }
+    if(on) {
+      document.getElementById('placeholder-state').classList.add('hidden');
+      document.getElementById('loading-state').classList.remove('hidden');
+      document.getElementById('error-bar').classList.add('hidden');
+    }
+  }
+
+  function showError(msg) {
+    setLoading(false);
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('placeholder-state').classList.remove('hidden');
+    document.getElementById('diagram-output').classList.add('hidden');
+    document.getElementById('error-bar').classList.remove('hidden');
+    document.getElementById('error-text').textContent = msg;
+    document.getElementById('render-badge').classList.add('hidden');
+  }
+
+  // Render Mermaid
+  async function renderMermaid(code) {
+    const preview = document.getElementById('diagram-preview');
+    preview.innerHTML = '';
+    const id = 'mmd' + Date.now();
+    try {
+      const { svg } = await mermaid.render(id, code);
+      preview.innerHTML = svg;
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('diagram-output').classList.remove('hidden');
+      document.getElementById('render-badge').classList.remove('hidden');
+      return true;
+    } catch(e) {
+      showError('Diagram render failed. AI ne galat syntax diya — dobara try karo.');
+      return false;
+    }
+  }
+
+  // ── GENERATE ─────────────────────────────────
+  async function generateDiagram() {
+    const prompt = document.getElementById('prompt-input').value.trim();
+    const dtype  = document.getElementById('diagram-type').value;
+
+    if(!prompt) {
+      showError('Pehle kuch likhein!');
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('placeholder-state').classList.remove('hidden');
+      return;
+    }
+
+    document.getElementById('error-bar').classList.add('hidden');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/generate/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ prompt, diagram_type: dtype }),
+      });
+      const data = await res.json();
+
+      if(!res.ok || data.error) { showError(data.error || 'Server error.'); return; }
+
+      const code = data.mermaid_code;
+      // Show code card
+      document.getElementById('mermaid-code-display').textContent = code;
+      document.getElementById('code-card').classList.remove('hidden');
+      setBadge(data.diagram_type || dtype);
+      setLoading(false);
+      document.getElementById('placeholder-state').classList.add('hidden');
+      document.getElementById('loading-state').classList.remove('hidden');
+      await renderMermaid(code);
+
+      // ── Update sidebar history WITHOUT page reload ──
+      if(data.history) updateHistorySidebar(data.history);
+      // ── Clear prompt only (diagram stays) ──
+      document.getElementById('prompt-input').value = '';
+
+    } catch(err) { showError('Network error: ' + err.message); }
+  }
+
+  // ── UPDATE SIDEBAR HISTORY (no page reload) ──
+  function updateHistorySidebar(items) {
+    const list = document.getElementById('history-list');
+    if(!items || items.length === 0) return;
+
+    list.innerHTML = items.map(h => {
+      const badgeCls = h.diagram_type==='flowchart'?'b-flow':h.diagram_type==='sequence'?'b-seq':'b-mind';
+      const icon     = h.diagram_type==='flowchart'?'⬡':h.diagram_type==='sequence'?'⇄':'✦';
+      const prompt   = h.prompt.length>60 ? h.prompt.slice(0,60)+'...' : h.prompt;
+      const code     = h.mermaid_code.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n');
+      const prmEsc   = h.prompt.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ');
+      return `
+        <div class="hist-item px-3 py-2.5" onclick="loadFromHistory('${code}','${prmEsc}','${h.diagram_type}')">
+          <span class="badge ${badgeCls}">${icon} ${h.diagram_type_label}</span>
+          <p class="text-gray-300 text-[11px] font-medium mt-1.5 leading-snug" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${prompt}</p>
+          <p class="text-gray-700 text-[10px] mt-1">${h.created_at}</p>
+        </div>`;
+    }).join('');
+  }
+
+  // ── LOAD FROM HISTORY ───────────────────────
+  async function loadFromHistory(code, prompt, type) {
+    document.getElementById('prompt-input').value = prompt;
+    document.getElementById('diagram-type').value = type;
+    document.getElementById('mermaid-code-display').textContent = code;
+    document.getElementById('code-card').classList.remove('hidden');
+    setBadge(type);
+    document.getElementById('placeholder-state').classList.add('hidden');
+    document.getElementById('loading-state').classList.remove('hidden');
+    document.getElementById('diagram-output').classList.add('hidden');
+    document.getElementById('error-bar').classList.add('hidden');
+    document.getElementById('render-badge').classList.add('hidden');
+    await renderMermaid(code);
+    // Close sidebar on mobile after selection
+    closeSidebar();
+  }
+
+  // ── COPY ─────────────────────────────────────
+  async function copyCode() {
+    const code = document.getElementById('mermaid-code-display').textContent;
+    if(!code) return;
+    try { await navigator.clipboard.writeText(code); }
+    catch { const t=document.createElement('textarea'); t.value=code; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
+    const el=document.getElementById('copy-text'); el.textContent='Copied!'; setTimeout(()=>el.textContent='Copy',2000);
+  }
+
+  // ── PNG EXPORT ───────────────────────────────
+  async function downloadPNG() {
+    if(!document.getElementById('diagram-preview').querySelector('svg')) { alert('Pehle diagram generate karo!'); return; }
+    const txt=document.getElementById('png-text'); txt.textContent='Saving…';
+    try {
+      const w=document.createElement('div');
+      w.style.cssText='position:fixed;left:-9999px;top:0;padding:32px;background:#18182a;border-radius:16px;';
+      w.innerHTML=document.getElementById('diagram-preview').innerHTML;
+      document.body.appendChild(w);
+      const canvas=await html2canvas(w,{backgroundColor:'#18182a',scale:2,logging:false});
+      document.body.removeChild(w);
+      const a=document.createElement('a'); a.download='flowmind-diagram.png'; a.href=canvas.toDataURL('image/png'); a.click();
+    } catch(e) { alert('Export failed: '+e.message); }
+    finally { txt.textContent='PNG'; }
+  }
+
+  // Ctrl+Enter shortcut
+  document.addEventListener('keydown', e => { if(e.ctrlKey && e.key==='Enter') generateDiagram(); });
+</script>
+
+</body>
+</html>
