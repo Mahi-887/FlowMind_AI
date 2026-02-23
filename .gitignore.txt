@@ -1,0 +1,16 @@
+# Secrets (Most Important)
+saferoute/.env
+.env
+
+# Environment & Python
+myenv/
+venv/
+__pycache__/
+*.pyc
+
+# Databases
+db.sqlite3
+
+# Temporary Windows files
+New Text Document.txt
+Thumbs.db
