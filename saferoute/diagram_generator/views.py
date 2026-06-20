@@ -2,19 +2,28 @@ import os
 import json
 import requests as http_requests
 from google import genai
-from django.shortcuts import render, redirect
-from django.contrib.auth import login as auth_login, logout as auth_logout
-from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib import messages
 from django.conf import settings
 
-from .models import CustomUser, OTPSession, DiagramHistory
+from .models import DiagramHistory
 
 # ── Gemini client ──────────────────────────────────────────────
-_api_key = settings.GEMINI_API_KEY
-client = genai.Client(api_key=_api_key) if _api_key else None
+def get_gemini_client():
+    # Use settings first, then environment
+    api_key = getattr(settings, 'GEMINI_API_KEY', None)
+    if not api_key:
+        api_key = os.getenv('GEMINI_API_KEY')
+    
+    if api_key and api_key.strip():
+        # Using the standard genai.Client initialization
+        try:
+            return genai.Client(api_key=api_key.strip())
+        except Exception as e:
+            print(f"[Gemini Init Error] {e}")
+            return None
+    return None
 
 DIAGRAM_HINTS = {
     'flowchart': 'graph TD',
@@ -23,181 +32,48 @@ DIAGRAM_HINTS = {
 }
 
 # ── Universal AI Brain ─────────────────────────────────────────
-# Handles ANY domain in English / Hindi / Hinglish
+# Handles ANY domain in English / Hindi / Hinglish with high intelligence
 SYSTEM_INSTRUCTION = """
-System: You are a Universal Logical Analyst and Diagram Expert.
+System: You are an Elite AI Systems Architect and Data Visualizer.
 
-INPUT LANGUAGE: The user will speak naturally in English, Hindi, or Hinglish.
-Examples: "Gajar halwa banana hai", "Bank se loan lena hai", "Trip ke liye packing list",
-          "Bache ko school admission process", "Login flow banana hai", "Server API kaise kaam karta hai"
+CORE MISSION:
+Your goal is to take ANY user prompt—even if it is rough, vague, messy, or grammatically broken—and transform it into a professional, logically structured diagram.
 
-YOUR UNIVERSAL RULES:
-1. Understand the CORE GOAL of ANY topic — Cooking, Travel, Finance, Tech, Healthcare, Education, Shopping, Daily Life.
-2. Break it into professional, chronological, logical steps.
-3. SMART DOMAIN MAPPING:
-   - Packing list / Checklist / Collection of items → Mindmap with clear categories
-   - Recipe / Cooking / Step-by-step kaise banaein → Flowchart with ingredient + step nodes
-   - Loan / Finance / Application process → Flowchart with decision nodes (approved/rejected)
-   - API / System interaction / Request-Response → Sequence Diagram with actors
-   - Trip planning / Itinerary → Flowchart or Mindmap with location nodes
-   - School / Business / Admission process → Flowchart with conditional branches
-4. Use the DIAGRAM TYPE selected by the user (flowchart / sequence / mindmap).
-   Override the type only if the data STRONGLY demands it (e.g., a "list" with mindmap).
-5. Use SHORT, CLEAR node labels (max 5 words each).
-6. Prefer real, meaningful content — not generic placeholder text.
+INPUT HANDLING:
+1. LANGUAGES: You understand English, Hindi, and Hinglish (Hindi written in Roman script).
+2. ROUGH PROMPTS: If a user gives a "raw" or "rough" prompt (e.g., "bhai ek login system ka diagram bana de jisme db ho aur fail ho to wapas jaye"), you MUST:
+   - Deduce the underlying intent.
+   - Identify missing logical steps (e.g., adding "Verify Credentials" or "Show Error Message").
+   - Organize the flow chronologically or hierarchically.
+3. DOMAIN EXPERTISE: You can handle Cooking recipes, Business processes, Software architecture, Trip planning, Daily routines, etc.
 
-OUTPUT FORMAT (STRICT):
+DIAGRAM RULES:
+- FLOWCHART: Use clear logic. Include decision points (diamonds).
+- SEQUENCE: Show interactions between specific actors/systems.
+- MINDMAP: Use for categorization, brainstorming, or lists.
+
+STRICT OUTPUT FORMAT:
 - Return ONLY valid Mermaid.js code.
-- ZERO explanations, ZERO markdown backticks, ZERO extra text.
-- Start DIRECTLY with the Mermaid keyword:
-  Flowchart → start with: graph TD
-  Sequence  → start with: sequenceDiagram
-  Mindmap   → start with: mindmap
+- NO markdown code blocks (no ```mermaid or ```).
+- NO explanations, NO introductory text, NO conversational filler.
+- Start directly with the required keyword (graph TD, sequenceDiagram, or mindmap).
 """
-
-
-# ──────────────────────────────────────────────────────────────
-#  SMS: Fast2SMS helper  (free Indian SMS provider)
-# ──────────────────────────────────────────────────────────────
-def send_sms_otp(phone: str, otp: str) -> bool:
-    """
-    Send OTP via Fast2SMS (free Indian SMS API).
-    Signup free at https://www.fast2sms.com and add your key to .env as FAST2SMS_API_KEY.
-    If key is not set → falls back gracefully (OTP shown in DEV MODE).
-    """
-    api_key = getattr(settings, 'FAST2SMS_API_KEY', '')
-    if not api_key:
-        return False  # no SMS key configured → caller handles fallback
-
-    try:
-        resp = http_requests.post(
-            'https://www.fast2sms.com/dev/bulkV2',
-            headers={'authorization': api_key, 'Content-Type': 'application/x-www-form-urlencoded'},
-            data={
-                'variables_values': otp,
-                'route': 'otp',
-                'numbers': phone,
-            },
-            timeout=10,
-        )
-        result = resp.json()
-        return bool(result.get('return', False))
-    except Exception as e:
-        print(f"[Fast2SMS ERROR] {e}")
-        return False
-
-
-# ──────────────────────────────────────────────────────────────
-#  AUTH: Send OTP
-# ──────────────────────────────────────────────────────────────
-def send_otp(request):
-    """Step 1: User enters phone number → OTP generated & sent via SMS (or shown in DEV mode)."""
-    if request.user.is_authenticated:
-        return redirect('flowmind_index')
-
-    if request.method == 'POST':
-        phone = request.POST.get('phone', '').strip()
-
-        if not phone.isdigit() or len(phone) != 10:
-            messages.error(request, '⚠️ Please enter a valid 10-digit mobile number.')
-            return render(request, 'diagram_generator/login_phone.html')
-
-        otp_obj = OTPSession.generate_otp(phone)
-
-        # Always print to console for debugging
-        print(f"\n{'='*52}")
-        print(f"  📱 FlowMind AI — OTP for {phone}: {otp_obj.otp}")
-        print(f"{'='*52}\n")
-
-        # Try sending real SMS via Fast2SMS
-        sms_sent = send_sms_otp(phone, otp_obj.otp)
-
-        request.session['otp_phone'] = phone
-
-        if sms_sent:
-            messages.success(
-                request,
-                f'✅ OTP sent to <strong>+91 {phone}</strong> via SMS. '
-                f'Please check your messages.'
-            )
-        else:
-            # Fallback: show OTP in UI (DEV MODE)
-            messages.success(
-                request,
-                f'📱 <strong>DEV MODE</strong> — OTP for +91 {phone}: '
-                f'<span style="font-size:1.6em;font-weight:800;letter-spacing:0.18em;color:#a78bfa">'
-                f'{otp_obj.otp}</span>'
-                f'<br><small style="opacity:.7">(Add FAST2SMS_API_KEY to .env for real SMS)</small>'
-            )
-
-        return redirect('verify_otp')
-
-    return render(request, 'diagram_generator/login_phone.html')
-
-
-# ──────────────────────────────────────────────────────────────
-#  AUTH: Verify OTP
-# ──────────────────────────────────────────────────────────────
-def verify_otp(request):
-    """Step 2: User enters OTP → Django session created."""
-    phone = request.session.get('otp_phone')
-    if not phone:
-        return redirect('send_otp')
-
-    if request.method == 'POST':
-        entered_otp = request.POST.get('otp', '').strip()
-
-        try:
-            otp_obj = OTPSession.objects.filter(phone_number=phone).latest('created_at')
-        except OTPSession.DoesNotExist:
-            messages.error(request, 'OTP not found. Please request a new one.')
-            return redirect('send_otp')
-
-        if not otp_obj.is_valid():
-            messages.error(request, 'OTP expired. Please request a new one.')
-            otp_obj.delete()
-            return redirect('send_otp')
-
-        if otp_obj.otp != entered_otp:
-            messages.error(request, '❌ Incorrect OTP. Please try again.')
-            return render(request, 'diagram_generator/login_otp.html', {'phone': phone})
-
-        # OTP correct
-        user, _ = CustomUser.objects.get_or_create(phone_number=phone)
-        otp_obj.delete()
-        del request.session['otp_phone']
-
-        user.backend = 'django.contrib.auth.backends.ModelBackend'
-        auth_login(request, user)
-        return redirect('flowmind_index')
-
-    return render(request, 'diagram_generator/login_otp.html', {'phone': phone})
-
-
-# ──────────────────────────────────────────────────────────────
-#  AUTH: Logout
-# ──────────────────────────────────────────────────────────────
-def logout_view(request):
-    auth_logout(request)
-    return redirect('send_otp')
 
 
 # ──────────────────────────────────────────────────────────────
 #  DASHBOARD
 # ──────────────────────────────────────────────────────────────
-@login_required
 def index(request):
-    history = DiagramHistory.objects.filter(user=request.user)[:10]
+    history = DiagramHistory.objects.all()[:10]
     return render(request, 'diagram_generator/index.html', {'history': history})
 
 
 # ──────────────────────────────────────────────────────────────
 #  HISTORY (AJAX GET) — returns JSON for sidebar refresh
 # ──────────────────────────────────────────────────────────────
-@login_required
 def get_history(request):
     """Return latest 10 history entries as JSON for sidebar AJAX refresh."""
-    items = DiagramHistory.objects.filter(user=request.user)[:10]
+    items = DiagramHistory.objects.all()[:10]
     data = [
         {
             'id': h.id,
@@ -215,7 +91,6 @@ def get_history(request):
 # ──────────────────────────────────────────────────────────────
 #  GENERATE DIAGRAM (AJAX POST)
 # ──────────────────────────────────────────────────────────────
-@login_required
 @csrf_exempt
 def generate_diagram(request):
     """Handle AJAX POST: call Gemini, save history, return code + fresh history."""
@@ -235,6 +110,7 @@ def generate_diagram(request):
     if diagram_type not in DIAGRAM_HINTS:
         diagram_type = 'flowchart'
 
+    client = get_gemini_client()
     if not client:
         return JsonResponse({'error': 'Gemini API key not configured.'}, status=500)
 
@@ -267,45 +143,60 @@ def generate_diagram(request):
         f"USER REQUEST: {user_prompt}"
     )
 
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=full_prompt,
-        )
-        mermaid_code = response.text.strip()
+    models_to_try = [
+        'gemini-3.5-flash',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-flash',
+    ]
+    response = None
+    last_error = None
 
-        # Strip accidental markdown fences
-        if mermaid_code.startswith('```'):
-            lines = mermaid_code.splitlines()
-            lines = [l for l in lines if not l.strip().startswith('```')]
-            mermaid_code = '\n'.join(lines).strip()
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=full_prompt,
+            )
+            break
+        except Exception as e:
+            last_error = e
+            print(f"[Fallback warning] Model {model_name} failed: {e}")
+            continue
 
-        # Save to history
-        DiagramHistory.objects.create(
-            user=request.user,
-            prompt=user_prompt,
-            mermaid_code=mermaid_code,
-            diagram_type=diagram_type,
-        )
+    if not response:
+        return JsonResponse({'error': f'Gemini API error (all fallback models failed): {str(last_error)}'}, status=500)
 
-        # Return fresh history for sidebar AJAX update (no page reload needed)
-        history_items = [
-            {
-                'id': h.id,
-                'prompt': h.prompt,
-                'mermaid_code': h.mermaid_code,
-                'diagram_type': h.diagram_type,
-                'diagram_type_label': h.get_diagram_type_display(),
-                'created_at': h.created_at.strftime('%d %b, %I:%M %p'),
-            }
-            for h in DiagramHistory.objects.filter(user=request.user)[:10]
-        ]
+    mermaid_code = response.text.strip()
 
-        return JsonResponse({
-            'mermaid_code': mermaid_code,
-            'diagram_type': diagram_type,
-            'history': history_items,
-        })
+    # Strip accidental markdown fences
+    if mermaid_code.startswith('```'):
+        lines = mermaid_code.splitlines()
+        lines = [l for l in lines if not l.strip().startswith('```')]
+        mermaid_code = '\n'.join(lines).strip()
 
-    except Exception as e:
-        return JsonResponse({'error': f'Gemini API error: {str(e)}'}, status=500)
+    # Save to history
+    DiagramHistory.objects.create(
+        prompt=user_prompt,
+        mermaid_code=mermaid_code,
+        diagram_type=diagram_type,
+    )
+
+    # Return fresh history for sidebar AJAX update (no page reload needed)
+    history_items = [
+        {
+            'id': h.id,
+            'prompt': h.prompt,
+            'mermaid_code': h.mermaid_code,
+            'diagram_type': h.diagram_type,
+            'diagram_type_label': h.get_diagram_type_display(),
+            'created_at': h.created_at.strftime('%d %b, %I:%M %p'),
+        }
+        for h in DiagramHistory.objects.all()[:10]
+    ]
+
+    return JsonResponse({
+        'mermaid_code': mermaid_code,
+        'diagram_type': diagram_type,
+        'history': history_items,
+    })

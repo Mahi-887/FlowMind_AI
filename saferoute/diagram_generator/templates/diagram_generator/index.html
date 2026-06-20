@@ -124,7 +124,7 @@
           <p class="text-sm font-bold grad leading-none">FlowMind AI</p>
           <div class="flex items-center gap-1.5 mt-0.5">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse"></span>
-            <span class="text-[10px] text-gray-500">Gemini 2.5 Flash</span>
+            <span class="text-[10px] text-gray-500">Gemini 2.0 Flash</span>
           </div>
         </div>
       </div>
@@ -137,19 +137,6 @@
     </div>
   </div>
 
-  <!-- User info -->
-  <div class="px-4 py-3.5 border-b border-white/[0.07]">
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-        {{ request.user.phone_number|slice:":1" }}
-      </div>
-      <div class="min-w-0">
-        <p class="text-sm font-semibold text-white truncate">+91 {{ request.user.phone_number }}</p>
-        <p class="text-[11px] text-gray-500">Logged in via OTP</p>
-      </div>
-    </div>
-  </div>
-
   <!-- Nav -->
   <nav class="px-3 py-3 flex flex-col gap-1">
     <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-sm font-medium">
@@ -158,20 +145,13 @@
       </svg>
       Dashboard
     </a>
-    <a href="/admin/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-white/[0.05] text-sm transition-all">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-      </svg>
-      Admin Panel
-    </a>
   </nav>
 
   <!-- History list -->
   <div class="flex-1 px-3 pb-2">
     <div class="flex items-center justify-between px-2 mb-2">
-      <span class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest">Recent Diagrams</span>
-      <span class="text-[10px] text-gray-800">Last 10</span>
+      <span class="text-[10px] font-semibold text-gray-600 uppercase tracking-widest">Global History</span>
+      <span class="text-[10px] text-gray-800">Latest 10</span>
     </div>
     <div id="history-list" class="flex flex-col gap-1.5">
       {% if history %}
@@ -195,16 +175,6 @@
         </div>
       {% endif %}
     </div>
-  </div>
-
-  <!-- Logout -->
-  <div class="px-3 pb-5 mt-1">
-    <a href="{% url 'logout' %}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-400 text-sm transition-all border border-transparent hover:border-red-500/20">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-      </svg>
-      Logout
-    </a>
   </div>
 </aside>
 
@@ -257,6 +227,28 @@
           </select>
         </div>
 
+        <!-- Theme & Orientation row -->
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs text-gray-500">Preview Theme</label>
+            <select id="diagram-theme" onchange="changeTheme()" class="bg-white/[0.04] border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-2 pr-8 transition-all cursor-pointer">
+              <option value="dark">Dark Theme</option>
+              <option value="default">Default Theme</option>
+              <option value="forest">Forest Theme</option>
+              <option value="neutral">Neutral Theme</option>
+            </select>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs text-gray-500">Flowchart Layout</label>
+            <select id="flowchart-orient" onchange="changeOrientation()" class="bg-white/[0.04] border border-white/10 text-gray-200 text-xs rounded-xl px-3 py-2 pr-8 transition-all cursor-pointer">
+              <option value="TD">Top-Bottom (TD)</option>
+              <option value="LR">Left-Right (LR)</option>
+              <option value="BT">Bottom-Top (BT)</option>
+              <option value="RL">Right-Left (RL)</option>
+            </select>
+          </div>
+        </div>
+
         <!-- Prompt textarea -->
         <div class="flex flex-col gap-1.5">
           <label class="text-xs text-gray-500">Description</label>
@@ -298,13 +290,24 @@
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
               <span id="copy-text">Copy</span>
             </button>
+            <button onclick="downloadSVG()" class="btn-ghost flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 text-gray-400 hover:text-indigo-300 transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span id="svg-text">SVG</span>
+            </button>
             <button onclick="downloadPNG()" class="btn-ghost flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 text-gray-400 hover:text-emerald-300 transition-all">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
               <span id="png-text">PNG</span>
             </button>
           </div>
         </div>
-        <pre id="mermaid-code-display" class="font-mono text-[11px] text-emerald-300 bg-black/30 rounded-xl p-3 overflow-x-auto max-h-44 overflow-y-auto leading-relaxed whitespace-pre-wrap break-all"></pre>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[10px] text-gray-500">✏️ Edit code below to update preview instantly</label>
+          <textarea id="mermaid-code-display" oninput="debouncedRender()" class="font-mono text-[11px] text-emerald-300 bg-black/30 border border-white/5 focus:border-indigo-500/50 rounded-xl p-3 w-full h-40 resize-none transition-all leading-relaxed whitespace-pre overflow-auto focus:outline-none focus:ring-1 focus:ring-indigo-500/30"></textarea>
+          <div id="validation-status" class="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>✓ Valid code</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -327,10 +330,18 @@
         </div>
 
         <!-- Diagram area -->
-        <div class="flex-1 flex items-center justify-center overflow-auto p-4" style="min-height: 340px;">
+        <div class="flex-1 flex items-center justify-center overflow-hidden p-4 relative" style="min-height: 380px; background: #07070a; border-radius: 0 0 16px 16px;">
+          <!-- Floating Controls -->
+          <div id="zoom-controls" class="hidden absolute bottom-4 right-4 flex items-center gap-1.5 glass px-2 py-1.5 rounded-xl z-20 shadow-xl border border-white/10">
+            <button onclick="zoomDiagram(1.2)" class="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/5 hover:bg-white/[0.1] text-gray-400 hover:text-white transition-all flex items-center justify-center text-sm font-bold" title="Zoom In">＋</button>
+            <button onclick="zoomDiagram(0.8)" class="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/5 hover:bg-white/[0.1] text-gray-400 hover:text-white transition-all flex items-center justify-center text-sm font-bold" title="Zoom Out">－</button>
+            <button onclick="resetZoom()" class="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/5 hover:bg-white/[0.1] text-gray-400 hover:text-white transition-all flex items-center justify-center text-[10px] font-semibold" title="Reset Zoom">Reset</button>
+            <div class="w-px h-5 bg-white/10 mx-1"></div>
+            <span class="text-[9px] text-gray-500 px-1 font-mono uppercase select-none">Drag to Pan</span>
+          </div>
 
           <!-- Placeholder -->
-          <div id="placeholder-state" class="text-center">
+          <div id="placeholder-state" class="text-center z-10">
             <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-white/10 flex items-center justify-center">
               <svg class="w-8 h-8 text-indigo-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -341,7 +352,7 @@
           </div>
 
           <!-- Loading -->
-          <div id="loading-state" class="hidden text-center">
+          <div id="loading-state" class="hidden text-center z-10">
             <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
               <div class="spin" style="width:22px;height:22px;border-width:2.5px;"></div>
             </div>
@@ -350,8 +361,8 @@
           </div>
 
           <!-- Rendered diagram -->
-          <div id="diagram-output" class="hidden w-full flex items-center justify-center">
-            <div id="diagram-preview"></div>
+          <div id="diagram-output" class="hidden w-full h-full flex items-center justify-center overflow-hidden">
+            <div id="diagram-preview" class="transition-transform duration-100 ease-out"></div>
           </div>
         </div>
       </div>
@@ -437,22 +448,56 @@
     document.getElementById('error-bar').classList.remove('hidden');
     document.getElementById('error-text').textContent = msg;
     document.getElementById('render-badge').classList.add('hidden');
+    document.getElementById('zoom-controls').classList.add('hidden');
+  }
+
+  // Sync orientation dropdown based on generated code
+  function syncOrientationDropdown(code) {
+    const pattern = /^(graph|flowchart)\s+(TD|LR|BT|RL|TB)/;
+    const match = code.match(pattern);
+    if (match) {
+      const orient = match[2];
+      document.getElementById('flowchart-orient').value = orient === 'TB' ? 'TD' : orient;
+    }
   }
 
   // Render Mermaid
-  async function renderMermaid(code) {
+  async function renderMermaid(code, isLiveEdit = false) {
     const preview = document.getElementById('diagram-preview');
     preview.innerHTML = '';
     const id = 'mmd' + Date.now();
+    
+    // Get current theme dynamically on render
+    const theme = document.getElementById('diagram-theme').value;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: theme,
+      fontFamily: 'Inter, sans-serif',
+      themeVariables: {
+        primaryColor: '#312e81', primaryTextColor: '#e2e8f0',
+        primaryBorderColor: '#6366f1', lineColor: '#818cf8',
+        secondaryColor: '#1e1b4b', background: '#0b0b10',
+        mainBkg: '#18182a', nodeBorder: '#6366f1', fontSize: '15px',
+        edgeLabelBackground: '#0b0b10',
+      }
+    });
+
     try {
       const { svg } = await mermaid.render(id, code);
       preview.innerHTML = svg;
       document.getElementById('loading-state').classList.add('hidden');
       document.getElementById('diagram-output').classList.remove('hidden');
       document.getElementById('render-badge').classList.remove('hidden');
+      document.getElementById('zoom-controls').classList.remove('hidden');
+      resetZoom();
       return true;
     } catch(e) {
-      showError('Diagram render failed. AI ne galat syntax diya — dobara try karo.');
+      preview.innerHTML = '';
+      document.getElementById('render-badge').classList.add('hidden');
+      document.getElementById('loading-state').classList.add('hidden');
+      if (!isLiveEdit) {
+        showError('Diagram rendering failed. Mermaid syntax error found. View or edit details in the editor below.');
+      }
       return false;
     }
   }
@@ -470,6 +515,7 @@
     }
 
     document.getElementById('error-bar').classList.add('hidden');
+    document.getElementById('zoom-controls').classList.add('hidden');
     setLoading(true);
 
     try {
@@ -484,13 +530,24 @@
 
       const code = data.mermaid_code;
       // Show code card
-      document.getElementById('mermaid-code-display').textContent = code;
+      const displayTextArea = document.getElementById('mermaid-code-display');
+      displayTextArea.value = code;
       document.getElementById('code-card').classList.remove('hidden');
+      
+      // Reset validation status
+      document.getElementById('validation-status').innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="text-emerald-400">✓ Valid code</span>';
+      displayTextArea.classList.remove('border-red-500/40');
+
+      syncOrientationDropdown(code);
       setBadge(data.diagram_type || dtype);
       setLoading(false);
       document.getElementById('placeholder-state').classList.add('hidden');
       document.getElementById('loading-state').classList.remove('hidden');
-      await renderMermaid(code);
+      
+      const success = await renderMermaid(code, false);
+      if (!success) {
+        showError('Diagram rendering failed. Mermaid syntax structure is invalid. Please edit it below.');
+      }
 
       // ── Update sidebar history WITHOUT page reload ──
       if(data.history) updateHistorySidebar(data.history);
@@ -510,7 +567,7 @@
       const icon     = h.diagram_type==='flowchart'?'⬡':h.diagram_type==='sequence'?'⇄':'✦';
       const prompt   = h.prompt.length>60 ? h.prompt.slice(0,60)+'...' : h.prompt;
       const code     = h.mermaid_code.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n');
-      const prmEsc   = h.prompt.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ');
+      const prmEsc   = h.prompt.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/\n/g,' ');
       return `
         <div class="hist-item px-3 py-2.5" onclick="loadFromHistory('${code}','${prmEsc}','${h.diagram_type}')">
           <span class="badge ${badgeCls}">${icon} ${h.diagram_type_label}</span>
@@ -524,43 +581,299 @@
   async function loadFromHistory(code, prompt, type) {
     document.getElementById('prompt-input').value = prompt;
     document.getElementById('diagram-type').value = type;
-    document.getElementById('mermaid-code-display').textContent = code;
+    
+    const displayTextArea = document.getElementById('mermaid-code-display');
+    displayTextArea.value = code;
     document.getElementById('code-card').classList.remove('hidden');
+    
+    // Reset validation status
+    document.getElementById('validation-status').innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="text-emerald-400">✓ Valid code</span>';
+    displayTextArea.classList.remove('border-red-500/40');
+
+    syncOrientationDropdown(code);
     setBadge(type);
     document.getElementById('placeholder-state').classList.add('hidden');
     document.getElementById('loading-state').classList.remove('hidden');
     document.getElementById('diagram-output').classList.add('hidden');
     document.getElementById('error-bar').classList.add('hidden');
     document.getElementById('render-badge').classList.add('hidden');
-    await renderMermaid(code);
+    document.getElementById('zoom-controls').classList.add('hidden');
+    
+    const success = await renderMermaid(code, false);
+    if (!success) {
+      showError('Failed to render this diagram from history.');
+    }
     // Close sidebar on mobile after selection
     closeSidebar();
   }
 
   // ── COPY ─────────────────────────────────────
   async function copyCode() {
-    const code = document.getElementById('mermaid-code-display').textContent;
+    const code = document.getElementById('mermaid-code-display').value;
     if(!code) return;
     try { await navigator.clipboard.writeText(code); }
     catch { const t=document.createElement('textarea'); t.value=code; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
     const el=document.getElementById('copy-text'); el.textContent='Copied!'; setTimeout(()=>el.textContent='Copy',2000);
   }
 
+  // ── SVG EXPORT ───────────────────────────────
+  async function downloadSVG() {
+    const code = document.getElementById('mermaid-code-display').value;
+    if (!code) { alert('Pehle diagram generate karo!'); return; }
+    
+    // Initialize temporary light theme
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      fontFamily: 'Inter, sans-serif',
+      themeVariables: {
+        background: '#ffffff',
+        mainBkg: '#ffffff',
+        nodeBorder: '#000000',
+        lineColor: '#000000',
+        primaryColor: '#f3f4f6',
+        primaryTextColor: '#000000',
+        primaryBorderColor: '#000000',
+        textColor: '#000000',
+        edgeLabelBackground: '#ffffff',
+      }
+    });
+
+    const tempId = 'mmd_export_svg_' + Date.now();
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = 'position:fixed;left:-9999px;top:0;';
+    document.body.appendChild(tempDiv);
+
+    try {
+      const { svg } = await mermaid.render(tempId, code);
+      tempDiv.innerHTML = svg;
+      const svgEl = tempDiv.querySelector('svg');
+      svgEl.style.backgroundColor = '#ffffff';
+      
+      // Inject CSS style to make lines, boxes, and text bold black
+      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleEl.textContent = `
+        .edgePath .path, .flowchart-link, .messageLine0, .messageLine1, .connection { stroke: #000000 !important; stroke-width: 2.5px !important; }
+        .marker, [id^=arrowhead] path, marker path, #arrowhead-end, #arrowhead-start { fill: #000000 !important; stroke: #000000 !important; }
+        .node rect, .node circle, .node polygon, .node path, .actor, .mindmap-node { stroke: #000000 !important; stroke-width: 2.5px !important; fill: #ffffff !important; }
+        .label text, .edgeLabel text, .actor text, .labelText { fill: #000000 !important; font-weight: 700 !important; }
+      `;
+      svgEl.appendChild(styleEl);
+      
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svgEl);
+      if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      if(!source.match(/^<svg[^>]+xmlns\:xlink/)){
+        source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+      }
+      
+      const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.download = 'flowmind-diagram.svg';
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('SVG Export failed: ' + err.message);
+    } finally {
+      document.body.removeChild(tempDiv);
+      changeTheme(); // Restore theme
+    }
+  }
+
   // ── PNG EXPORT ───────────────────────────────
   async function downloadPNG() {
-    if(!document.getElementById('diagram-preview').querySelector('svg')) { alert('Pehle diagram generate karo!'); return; }
-    const txt=document.getElementById('png-text'); txt.textContent='Saving…';
+    const code = document.getElementById('mermaid-code-display').value;
+    if (!code) { alert('Pehle diagram generate karo!'); return; }
+    const txt = document.getElementById('png-text');
+    txt.textContent = 'Saving…';
+    
+    // Initialize temporary light theme
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      fontFamily: 'Inter, sans-serif',
+      themeVariables: {
+        background: '#ffffff',
+        mainBkg: '#ffffff',
+        nodeBorder: '#000000',
+        lineColor: '#000000',
+        primaryColor: '#f3f4f6',
+        primaryTextColor: '#000000',
+        primaryBorderColor: '#000000',
+        textColor: '#000000',
+        edgeLabelBackground: '#ffffff',
+      }
+    });
+
+    const tempId = 'mmd_export_png_' + Date.now();
+    const tempDiv = document.createElement('div');
+    tempDiv.style.cssText = 'position:fixed;left:-9999px;top:0;padding:32px;background:#ffffff;border-radius:16px;';
+    document.body.appendChild(tempDiv);
+
     try {
-      const w=document.createElement('div');
-      w.style.cssText='position:fixed;left:-9999px;top:0;padding:32px;background:#18182a;border-radius:16px;';
-      w.innerHTML=document.getElementById('diagram-preview').innerHTML;
-      document.body.appendChild(w);
-      const canvas=await html2canvas(w,{backgroundColor:'#18182a',scale:2,logging:false});
-      document.body.removeChild(w);
-      const a=document.createElement('a'); a.download='flowmind-diagram.png'; a.href=canvas.toDataURL('image/png'); a.click();
-    } catch(e) { alert('Export failed: '+e.message); }
-    finally { txt.textContent='PNG'; }
+      const { svg } = await mermaid.render(tempId, code);
+      tempDiv.innerHTML = svg;
+      const svgEl = tempDiv.querySelector('svg');
+      svgEl.style.backgroundColor = '#ffffff';
+
+      // Inject CSS style to make lines, boxes, and text bold black
+      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleEl.textContent = `
+        .edgePath .path, .flowchart-link, .messageLine0, .messageLine1, .connection { stroke: #000000 !important; stroke-width: 2.5px !important; }
+        .marker, [id^=arrowhead] path, marker path, #arrowhead-end, #arrowhead-start { fill: #000000 !important; stroke: #000000 !important; }
+        .node rect, .node circle, .node polygon, .node path, .actor, .mindmap-node { stroke: #000000 !important; stroke-width: 2.5px !important; fill: #ffffff !important; }
+        .label text, .edgeLabel text, .actor text, .labelText { fill: #000000 !important; font-weight: 700 !important; }
+      `;
+      svgEl.appendChild(styleEl);
+
+      const canvas = await html2canvas(tempDiv, { backgroundColor: '#ffffff', scale: 2, logging: false });
+      const a = document.createElement('a');
+      a.download = 'flowmind-diagram.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    } catch(e) { 
+      alert('PNG Export failed: ' + e.message); 
+    } finally { 
+      document.body.removeChild(tempDiv);
+      changeTheme(); // Restore theme
+      txt.textContent = 'PNG'; 
+    }
   }
+
+  // ── DEBOUNCED RENDER & VALIDATION ────────────
+  let debounceTimeout = null;
+  function debouncedRender() {
+    const code = document.getElementById('mermaid-code-display').value;
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    
+    const valStatus = document.getElementById('validation-status');
+    valStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-yellow-400 pulse"></span><span class="text-yellow-400">Typing...</span>';
+    
+    debounceTimeout = setTimeout(() => {
+      validateAndRender(code);
+    }, 450);
+  }
+
+  async function validateAndRender(code) {
+    const valStatus = document.getElementById('validation-status');
+    const displayTextArea = document.getElementById('mermaid-code-display');
+    
+    if (!code.trim()) {
+      valStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span><span class="text-red-400">Code is empty</span>';
+      displayTextArea.classList.add('border-red-500/40');
+      return;
+    }
+    
+    try {
+      await mermaid.parse(code);
+      valStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="text-emerald-400">✓ Valid code</span>';
+      displayTextArea.classList.remove('border-red-500/40');
+      await renderMermaid(code, true);
+    } catch (err) {
+      valStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span><span class="text-red-400 font-mono text-[9px] leading-tight">Error: ${err.message || 'invalid syntax'}</span>`;
+      displayTextArea.classList.add('border-red-500/40');
+    }
+  }
+
+  // ── ZOOM & PAN ───────────────────────────────
+  let scale = 1;
+  let pointX = 0;
+  let pointY = 0;
+  let startX = 0;
+  let startY = 0;
+  let isPanning = false;
+
+  function initPanZoom() {
+    const container = document.getElementById('diagram-output');
+    const target = document.getElementById('diagram-preview');
+
+    container.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return; // Left click only
+      const zoomControls = document.getElementById('zoom-controls');
+      if (zoomControls.contains(e.target)) return; // Don't drag when clicking buttons
+      
+      e.preventDefault();
+      startX = e.clientX - pointX;
+      startY = e.clientY - pointY;
+      isPanning = true;
+      target.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isPanning = false;
+      target.style.cursor = 'grab';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      pointX = e.clientX - startX;
+      pointY = e.clientY - startY;
+      updateTransform();
+    });
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomFactor = 1.1;
+      if (e.deltaY < 0) {
+        zoomDiagram(zoomFactor);
+      } else {
+        zoomDiagram(1 / zoomFactor);
+      }
+    });
+  }
+
+  function zoomDiagram(factor) {
+    scale *= factor;
+    if (scale < 0.25) scale = 0.25;
+    if (scale > 4) scale = 4;
+    updateTransform();
+  }
+
+  function resetZoom() {
+    scale = 1;
+    pointX = 0;
+    pointY = 0;
+    updateTransform();
+  }
+
+  function updateTransform() {
+    const target = document.getElementById('diagram-preview');
+    target.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+  }
+
+  // ── THEME & ORIENTATION CUSTOMIZATIONS ───────
+  function changeTheme() {
+    const theme = document.getElementById('diagram-theme').value;
+    const code = document.getElementById('mermaid-code-display').value;
+    
+    if (code) {
+      renderMermaid(code, true);
+    }
+  }
+
+  function changeOrientation() {
+    const orient = document.getElementById('flowchart-orient').value;
+    const textarea = document.getElementById('mermaid-code-display');
+    let code = textarea.value;
+    
+    if (!code) return;
+    
+    const pattern = /^(graph|flowchart)\s+(TD|LR|BT|RL|TB)/;
+    if (pattern.test(code)) {
+      code = code.replace(pattern, (match, type) => `${type} ${orient}`);
+      textarea.value = code;
+      validateAndRender(code);
+    }
+  }
+
+  // Init drag and zoom
+  window.addEventListener('DOMContentLoaded', () => {
+    initPanZoom();
+  });
 
   // Ctrl+Enter shortcut
   document.addEventListener('keydown', e => { if(e.ctrlKey && e.key==='Enter') generateDiagram(); });
